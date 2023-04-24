@@ -1,0 +1,24 @@
+name: release pipeline dev
+ 
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+
+jobs:
+
+  job1: 
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Printing the branch name
+      run: echo $GITHUB_REF_NAME
+    - name: predefined envoirnment
+      run: env         
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag my-app1:$GITHUB_REF_NAME
+    - name: LISTING DOCKER IMAGES
+      run: docker images
