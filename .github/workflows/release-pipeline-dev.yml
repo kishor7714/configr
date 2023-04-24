@@ -11,6 +11,13 @@ jobs:
   job1: 
 
     runs-on: ubuntu-latest
+    env:
+        JAVA_VERSION: '11'
+        DOCKER_REPO: 'configr'
+        DOCKER_ACCOUNT: 'kishore7714'
+        DOCKER_PASSWORD: 'Gtc9490363076'
+        DOCKER_USERNAME: 'kishore7714@gmail.com'
+        APP_NAME: 'configr'
 
     steps:
     - uses: actions/checkout@v3
@@ -19,6 +26,10 @@ jobs:
     - name: predefined envoirnment
       run: env         
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-app1:$GITHUB_REF_NAME
+      run: docker build . --file Dockerfile --tag ${APP_NAME}:$GITHUB_REF_NAME
     - name: LISTING DOCKER IMAGES
       run: docker images
+    - name: docker login
+      run: docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD} ${DOCKER_REPO} 
+    - name: docker push
+      run: docker push ${DOCKER_ACCOUNT}/${APP_NAME}:$GITHUB_REF_NAME         
