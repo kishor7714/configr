@@ -44,6 +44,7 @@ jobs:
       run: docker tag configr:$GITHUB_REF_NAME 716884131628.dkr.ecr.ap-south-1.amazonaws.com/${APP_NAME}:$GITHUB_REF_NAME      
     - name: docker push
       run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME
+      
 
   job-test: 
 
