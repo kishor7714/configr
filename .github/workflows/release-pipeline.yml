@@ -1,0 +1,83 @@
+name: release pipeline
+ 
+on:
+  push:
+    branches: ["dev", "test", "demo", "prod"]
+  # pull_request:
+  #   branches: [ "dev" ]
+
+jobs:
+
+  job-dev: 
+
+    runs-on: ubuntu-latest
+      if: github.ref == 'refs/heads/dev'
+    env:
+        JAVA_VERSION: '11'
+        DOCKER_REPO: 'configr'
+        DOCKER_ACCOUNT: 'kishore7714'
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        DOCKER_USERNAME: 'kishore7714@gmail.com'
+        APP_NAME: 'configr'
+        AWS_REPO: '716884131628.dkr.ecr.ap-south-1.amazonaws.com'
+        REGION: 'ap-south-1'
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Printing the branch name
+      run: echo $GITHUB_REF_NAME
+    - name: predefined envoirnment
+      run: env
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_SECRET }}
+          aws-region: ap-south-1           
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag ${APP_NAME}:$GITHUB_REF_NAME
+    - name: LISTING DOCKER IMAGES
+      run: docker images
+    - name: docker login
+      run: aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${AWS_REPO}
+    - name: docker tag image from configr:dev to aws ecr
+      run: docker tag configr:$GITHUB_REF_NAME 716884131628.dkr.ecr.ap-south-1.amazonaws.com/${APP_NAME}:$GITHUB_REF_NAME      
+    - name: docker push
+      run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME 
+
+  job-test: 
+
+    runs-on: ubuntu-latest
+      if: github.ref == 'refs/heads/test'
+    env:
+        JAVA_VERSION: '11'
+        DOCKER_REPO: 'configr'
+        DOCKER_ACCOUNT: 'kishore7714'
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        DOCKER_USERNAME: 'kishore7714@gmail.com'
+        APP_NAME: 'configr'
+        AWS_REPO: '716884131628.dkr.ecr.ap-south-1.amazonaws.com'
+        REGION: 'ap-south-1'
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Printing the branch name
+      run: echo $GITHUB_REF_NAME
+    - name: predefined envoirnment
+      run: env
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_SECRET }}
+          aws-region: ap-south-1           
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag ${APP_NAME}:$GITHUB_REF_NAME
+    - name: LISTING DOCKER IMAGES
+      run: docker images
+    - name: docker login
+      run: aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${AWS_REPO}
+    - name: docker tag image from configr:dev to aws ecr
+      run: docker tag configr:$GITHUB_REF_NAME 716884131628.dkr.ecr.ap-south-1.amazonaws.com/${APP_NAME}:$GITHUB_REF_NAME      
+    - name: docker push
+      run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME       
