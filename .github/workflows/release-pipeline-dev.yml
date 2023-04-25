@@ -3,8 +3,8 @@ name: release pipeline dev
 on:
   push:
     branches: [ "dev" ]
-  pull_request:
-    branches: [ "dev" ]
+  # pull_request:
+  #   branches: [ "dev" ]
 
 jobs:
 
@@ -15,7 +15,7 @@ jobs:
         JAVA_VERSION: '11'
         DOCKER_REPO: 'configr'
         DOCKER_ACCOUNT: 'kishore7714'
-        DOCKER_PASSWORD: 'Gtc9490363076'
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         DOCKER_USERNAME: 'kishore7714@gmail.com'
         APP_NAME: 'configr'
         AWS_REPO: '716884131628.dkr.ecr.ap-south-1.amazonaws.com'
