@@ -12,7 +12,7 @@ jobs:
 
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/dev'
-      env:
+    env:
         JAVA_VERSION: '11'
         DOCKER_REPO: 'configr'
         DOCKER_ACCOUNT: 'kishore7714'
