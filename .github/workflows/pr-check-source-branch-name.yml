@@ -1,0 +1,36 @@
+name: GitHub Actions PR CHECKS - check SOURCE branch name
+# on: 
+#     pull_request_review:
+#       types: [submitted]
+on:
+  # To get Pull Request Comments, you need to be scanning on Pull Request
+  pull_request:
+#     branches: [ "features/dhrj" ]
+    branches:
+#For example, you can restrict actions on pull requests to only run when created against the test branch:
+      - test
+      - demo
+      - prod
+#       - features/*
+#Ref: https://github.com/orgs/community/discussions/27154      
+jobs:
+  Get_SRC_DEST_BRANCH_NAMES_VERIFY_BRANCH_RULES:
+    name: check if the source and dest branch is correct and allowed branches 
+    runs-on: ubuntu-latest
+    env:
+      PR_SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+      PR_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}      
+    steps:
+        - name: get PR source Branch name FROM github.event.pull_request.base.ref
+          run: echo "PR initiated FROM Branch name" $PR_SOURCE_BRANCH
+        - name: get PR source Branch name TO github.event.pull_request.head.ref
+          run: echo "PR initiated TO Branch name" $PR_TARGET_BRANCH
+        - name: get PR source Branch name from github.event.pull_request.base.ref
+          run: |
+                if [[ $PR_TARGET_BRANCH == "test" ]]; then
+                  if [[ ! $PR_SOURCE_BRANCH == dev ]]; then
+                    echo "Error: If PR target branch is 'test', the PR source branch must start with 'dev'"
+                    exit 1
+                  fi                    
+                fi
+                echo "Branch validation successful."
