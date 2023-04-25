@@ -32,7 +32,7 @@ jobs:
       with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_ACCESS_SECRET }}
-          aws-region: ${REGION}           
+          aws-region: ${REGION}           
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag ${APP_NAME}:$GITHUB_REF_NAME
     - name: LISTING DOCKER IMAGES
