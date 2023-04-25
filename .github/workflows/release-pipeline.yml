@@ -82,7 +82,7 @@ jobs:
     - name: docker push
       run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME
 
-    job-demo: 
+  job-demo: 
 
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/demo'
@@ -117,9 +117,9 @@ jobs:
     - name: docker tag image from configr:demo to aws ecr
       run: docker tag configr:$GITHUB_REF_NAME 716884131628.dkr.ecr.ap-south-1.amazonaws.com/${APP_NAME}:$GITHUB_REF_NAME      
     - name: docker push
-      run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME
+      run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME  
 
-    job-prod: 
+  job-prod: 
 
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/prod'
@@ -154,4 +154,4 @@ jobs:
     - name: docker tag image from configr:prod to aws ecr
       run: docker tag configr:$GITHUB_REF_NAME 716884131628.dkr.ecr.ap-south-1.amazonaws.com/${APP_NAME}:$GITHUB_REF_NAME      
     - name: docker push
-      run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME        
+      run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME          
