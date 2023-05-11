@@ -46,7 +46,7 @@ jobs:
       run: docker push ${AWS_REPO}/${APP_NAME}:$GITHUB_REF_NAME
       
 
-  job-test: 
+  job-test:
 
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/test'
