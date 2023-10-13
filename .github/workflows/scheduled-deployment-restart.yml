@@ -107,7 +107,7 @@ jobs:
 
     - name: Authenticate GH CLI
       run: |
-        gh auth login --with-token <<< "${{ secrets.AWS_ACCESS_SECRET }}"
+        gh auth login --with-token <<< "${{ secrets.CRON_GITHUB_TOKEN }}"
         
     - name: Get the latest run ID for release-pipeline
       id: latest_run_id
