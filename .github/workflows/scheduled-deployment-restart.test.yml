@@ -1,0 +1,142 @@
+name: scheduled-deployment-restart-test
+
+on:
+  schedule:
+  - cron: "*/10 * * * *"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+
+jobs:
+
+  # Recall-Tag:
+  #   runs-on: [self-hosted,wmh-eks-dev-test] #1.26 self hosted runner
+  #   name: Deploying-Rel-Tag
+  #   env:
+  #     GITHUB_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+  #     ENV_K8s: "test"
+  #   steps:     
+  #     - name: Installing dependencies
+  #       run: |
+  #         sudo apt update
+  #         sudo apt install -y jq git openssh-client python3-pip
+  #         git --version
+  #         jq --version
+  #         echo "jq installed"
+
+  #         pip3 install --upgrade awscli
+  #         echo "aws version"
+  #         aws --version
+  #         python3 --version
+  #         pip3 install jinja2
+
+  #         curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+  #         chmod +x ./kubectl
+  #         mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+  #         echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+  #         kubectl version --client 
+
+  #     - name: Getting REL_Tag
+  #       shell: bash
+  #       env:
+  #         WITHME_DEVOPS_GITHUB: ${{ secrets.WITHME_DEVOPS_GITHUB }}
+  #         COMMIT_HASH: ${{ github.sha }}
+  #         PROJECT_NAME: ${{ github.event.repository.name }}
+  #         AWS_ECR: ${{ secrets.AWS_ECR }}
+  #         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         DEV_GITHUB_AWS_ACCESS_KEY_ID: ${{ secrets.DEV_GITHUB_AWS_ACCESS_KEY_ID }}
+  #         DEV_GITHUB_AWS_SECRET_ACCESS_KEY: ${{ secrets.DEV_GITHUB_AWS_SECRET_ACCESS_KEY }}
+  #         EKS_CLUSTER: ex-wmh-eks-dev-test
+  #         EKS_CLUSTER_REGION: us-east-1     
+  #       run: |
+
+  #         echo "$WITHME_DEVOPS_GITHUB" >> withme_devops_github.pem
+  #         echo "devops key saved to pem"
+  #         ls -l
+  #         chmod 600 withme_devops_github.pem
+  #         echo "devops key permissions updated"
+  #         path_key=$(pwd)/withme_devops_github.pem
+  #         cp $path_key withme-devops-github
+  #         mkdir -p /home/runner/.ssh
+  #         touch /home/runner/.ssh/known_hosts
+  #         curl --silent https://api.github.com/meta \
+  #         | jq --raw-output '"github.com "+.ssh_keys[]' >> ~/.ssh/known_hosts
+  #         GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/bootstrapper-init.git
+
+  #         curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+  #         chmod +x ./kubectl
+  #         mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+  #         echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+  #         kubectl version --client
+          
+  #         export NAMESPACE=$ENV_K8s
+  #         echo ${{secrets.NEWTEST_AWS_ACCESS_KEY_ID}} | sed 's/./& /g'
+  #         export AWS_ACCESS_KEY_ID=$DEV_GITHUB_AWS_ACCESS_KEY_ID
+  #         export AWS_SECRET_ACCESS_KEY=$DEV_GITHUB_AWS_SECRET_ACCESS_KEY
+  #         echo $DEV_GITHUB_AWS_ACCESS_KEY_ID
+  #         echo $DEV_GITHUB_AWS_SECRET_ACCESS_KEY 
+
+  #         cd bootstrapper-init
+  #         python3 template.py $PROJECT_NAME $ENV_K8s
+  #         cd generated_manifests/$ENV_K8s/$PROJECT_NAME
+
+  #         ls -l
+  #         aws sts get-caller-identity
+  #         aws eks update-kubeconfig --region $EKS_CLUSTER_REGION --name $EKS_CLUSTER
+  #         kubectl get nodes
+  #         kubectl -n $ENV_K8s get pods
+  #         REL_TAG=$(kubectl get deployment airflow-webserver-$ENV_K8s -n $ENV_K8s -o=jsonpath='{$.spec.template.spec.containers[:1].image}' | awk -F: '{print $2}')
+  #         echo "REL_TAG=$REL_TAG" >> $GITHUB_ENV
+  #         #kubectl cmd to get image tag
+
+  #         #To Identify the workflow ID
+  #         #curl -s -H "Authorization: token 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" "https://api.github.com/repos/withmehealth/airflow/actions/workflows"
+
+
+  #     - name: Print rel_tag
+  #       run: echo "The rel_tag is $REL_TAG"
+  rerun:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 
+
+    - name: Authenticate GH CLI
+      run: |
+        gh auth login --with-token <<< "${{ secrets.AWS_ACCESS_SECRET }}"
+        
+    - name: Get the latest run ID for release-pipeline-test
+      id: latest_run_id
+      run: |
+        gh run list --workflow=release-pipeline-test
+        RUN_ID=$(gh run list --workflow=release-pipeline-test | awk 'NR==1 {print $8}')
+        echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+
+
+    # - name: Wait for the latest run to complete
+    #   run: |
+    #     while true; do
+    #       STATUS=$(gh run list --workflow=Release-Pipeline-EKS-Test | awk 'NR==2' | awk '{print $2}')
+    #       if [[ "$STATUS" != "in_progress" ]]; then
+    #         break
+    #       fi
+    #       echo "Latest run is still in progress, waiting for it to complete..."
+    #       sleep 60  # wait for 60 seconds before checking again
+    #     done
+
+
+    #   run: |
+    #     gh run list --workflow=Release-Pipeline-EKS-Test
+    #     RUN_ID=$(gh run list --workflow=Release-Pipeline-EKS-Test | grep -oE '[0-9]{10}' | head -1)
+    #     echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+    
+
+
+    - name: Rerun the latest job
+      run: |
+        #gh run rerun $RUN_ID
+        echo $RUN_ID
