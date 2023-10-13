@@ -109,11 +109,11 @@ jobs:
       run: |
         gh auth login --with-token <<< "${{ secrets.AWS_ACCESS_SECRET }}"
         
-    - name: Get the latest run ID for release-pipeline-test
+    - name: Get the latest run ID for release-pipeline
       id: latest_run_id
       run: |
-        gh run list --workflow=release-pipeline-test
-        RUN_ID=$(gh run list --workflow=release-pipeline-test | awk 'NR==1 {print $8}')
+        gh run list --workflow=release-pipeline
+        RUN_ID=$(gh run list --workflow=release-pipeline | awk 'NR==1 {print $8}')
         echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
 
