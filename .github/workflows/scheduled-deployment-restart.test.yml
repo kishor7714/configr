@@ -105,16 +105,16 @@ jobs:
       with:
         fetch-depth: 0 
 
-    - name: Authenticate GH CLI
-      run: |
-        gh auth login --with-token <<< "${{ secrets.AWS_ACCESS_SECRET }}"
+    # - name: Authenticate GH CLI
+    #   run: |
+    #     gh auth login --with-token <<< "${{ secrets.AWS_ACCESS_SECRET }}"
         
-    - name: Get the latest run ID for release-pipeline
-      id: latest_run_id
-      run: |
-        gh run list --workflow=release-pipeline
-        RUN_ID=$(gh run list --workflow=release-pipeline | awk 'NR==1 {print $8}')
-        echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+    # - name: Get the latest run ID for release-pipeline
+    #   id: latest_run_id
+    #   run: |
+    #     gh run list --workflow=release-pipeline
+    #     RUN_ID=$(gh run list --workflow=release-pipeline | awk 'NR==1 {print $8}')
+    #     echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
 
     # - name: Wait for the latest run to complete
@@ -136,7 +136,7 @@ jobs:
     
 
 
-    - name: Rerun the latest job
-      run: |
-        #gh run rerun $RUN_ID
-        echo $RUN_ID
+    # - name: Rerun the latest job
+    #   run: |
+    #     # gh run rerun $RUN_ID
+    #     echo $RUN_ID
