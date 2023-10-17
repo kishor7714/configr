@@ -22,7 +22,7 @@ jobs:
           run: echo "test=world" >> "$GITHUB_OUTPUT"
         - id: step3
           run: |
-           APP_NAME: 'configr'
+           APP_NAME=configr
            echo "test=$APP_NAME" >> "$GITHUB_OUTPUT"
     job2:
       runs-on: ubuntu-latest
