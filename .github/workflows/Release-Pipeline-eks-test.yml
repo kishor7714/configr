@@ -1,0 +1,399 @@
+name: Release-Pipeline-eks-test
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+#   pull_request:
+#     branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  Docker-Build:
+    runs-on: [ "ubuntu-latest" ]
+    name: Building-Docker-image
+    env:
+      GITHUB_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+      ENV_K8s: "test"
+    outputs:
+      my_output: ${{ steps.vars.outputs.REL_VERSION }}      
+    steps:
+      - name: Installing dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y jq
+          jq --version
+          echo "jq installed"
+
+          pip install --upgrade awscli
+          echo "aws version"
+          aws --version
+          python --version
+          pip install jinja2
+          
+
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+          echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+          kubectl version --client
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0      
+      - name: Set major release
+        #if: ${{ github.event.label.name == 'release-major' }}
+        run: |
+          #echo "RELEASE=major" >> $GITHUB_ENV
+          myyear=date +'%y' #Y for 2022 y for 22
+          echo "myyear=${myyear}" >> $GITHUB_ENV
+          echo "year" ${myyear} set
+          
+      - name: Set minor release
+        #if: ${{ github.event.label.name == 'release-minor' }}
+        run: |
+          #echo "RELEASE=minor" >> $GITHUB_ENV
+          week=$(date +%V)
+          echo "week=${week}" >> $GITHUB_ENV
+          echo "week" ${week} set
+      - name: Set owner and repo name
+        run: |
+          echo "OWNER=withmehealth" >> $GITHUB_ENV
+          echo "REPO=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV         
+      - name: Check if release tag already exist - if exist add patch by +1
+        run: |
+          echo "OWNER" $OWNER
+          echo "REPO" $REPO
+          echo "GITHUB_TOKEN" ${GITHUB_TOKEN}
+          echo "$(pwd)"
+          cat $GITHUB_ENV
+          curl \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer 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" \
+          https://api.github.com/repos/$OWNER/$REPO/tags | sed 's/[][]//g' | grep name | sed 's/^.............//' | sed 's/..$//' > version-list.txt
+          echo "version list as below"
+          cat version-list.txt
+          bash release-pipeline-script.sh
+          echo "Github Env variables after script execution that sets the version"
+          cat $GITHUB_ENV
+          echo "all done exiting"
+      - name: "Build Changelog"
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v3.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+#       - name: Prepare description
+#         run: |
+#           csplit -s CHANGELOG.md "/##/" {1}
+#           cat xx01 > CHANGELOG.tmp
+#       - name: Prepare tag
+#         run: |
+#           export TAG=$(head -1 CHANGELOG.tmp | cut -d' ' -f2)
+#           echo "TAG=$TAG" >> $GITHUB_ENV
+#       - name: Create Release
+#         uses: actions/create-release@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           tag_name: ${{ env.TAG }}
+#           release_name: ${{ env.TAG }}
+#           body_path: CHANGELOG.tmp
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: Rel_${{ env.REL_VER }}
+          #tag_name: rel-dheeraj-1
+          #release_name: rel-dheeraj-1
+          release_name: Rel_${{ env.REL_VER }}
+          body: ${{steps.build_changelog.outputs.changelog}}
+          draft: false
+          prerelease: false
+
+      - name: Declare some variables
+        id: vars
+        shell: bash
+        run: |
+          echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+          echo "##[set-output name=REL_VERSION;]$(echo ${REL_VER})"          
+      - name: Build docker image
+        shell: bash
+        env:
+          WITHME_DEVOPS_GITHUB: ${{ secrets.WITHME_DEVOPS_GITHUB }}
+          DOCKER_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+          COMMIT_HASH: ${{ github.sha }}
+          PROJECT_NAME: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ steps.vars.outputs.branch }}
+          AWS_ECR: ${{ secrets.AWS_ECR }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DEV_GITHUB_AWS_ACCESS_KEY_ID: ${{ secrets.DEV_GITHUB_AWS_ACCESS_KEY_ID }}
+          DEV_GITHUB_AWS_SECRET_ACCESS_KEY: ${{ secrets.DEV_GITHUB_AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "$WITHME_DEVOPS_GITHUB" >> withme_devops_github.pem
+          chmod 600 withme_devops_github.pem
+          path_key=$(pwd)/withme_devops_github.pem
+          cp $path_key withme-devops-github
+          GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/kubernetes-configuration.git
+          GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/bootstrapper-init.git
+          export NAMESPACE=$ENV_K8s
+          echo "Printing ENV"
+          echo $ENV
+          #New Added user Docker file which presnt in bootstrapper-init
+          cd bootstrapper-init
+          python template.py $PROJECT_NAME $ENV_K8s
+          cd generated_manifests/$ENV_K8s/$PROJECT_NAME
+          cp Dockerfile ../../../../
+          cd ../../../../
+          #New
+          cp kubernetes-configuration/scripts/docker_build_push.sh ./
+          bash docker_build_push.sh $AWS_ECR $PROJECT_NAME $COMMIT_HASH Rel_${{ env.REL_VER }}
+
+  Docker-Build-Dev:
+        runs-on: [ "ubuntu-latest" ]
+        name: Building-Docker-image-Dev-Rel_${{ needs.Docker-Build.outputs.my_output }}
+        needs: Docker-Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+          ENV_K8s: "dev"
+        outputs:
+          my_output: ${{ steps.vars.outputs.REL_VERSION }}      
+        steps:
+          - name: Installing dependencies
+            run: |
+              sudo apt update
+              sudo apt install -y jq
+              jq --version
+              echo "jq installed"
+    
+              pip install --upgrade awscli
+              echo "aws version"
+              aws --version
+              python --version
+              pip install jinja2
+    
+              curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+              chmod +x ./kubectl
+              mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+              echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+              kubectl version --client
+    
+          - name: Checkout code
+            uses: actions/checkout@v3
+            with:
+              fetch-depth: 0      
+        
+          - name: Build docker image
+            shell: bash
+            env:
+              WITHME_DEVOPS_GITHUB: ${{ secrets.WITHME_DEVOPS_GITHUB }}
+              DOCKER_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+              COMMIT_HASH: ${{ github.sha }}
+              PROJECT_NAME: ${{ github.event.repository.name }}
+              BRANCH_NAME: ${{ steps.vars.outputs.branch }}
+              AWS_ECR: ${{ secrets.AWS_ECR }}
+              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              DEV_GITHUB_AWS_ACCESS_KEY_ID: ${{ secrets.DEV_GITHUB_AWS_ACCESS_KEY_ID }}
+              DEV_GITHUB_AWS_SECRET_ACCESS_KEY: ${{ secrets.DEV_GITHUB_AWS_SECRET_ACCESS_KEY }}
+            run: |
+              echo "$WITHME_DEVOPS_GITHUB" >> withme_devops_github.pem
+              chmod 600 withme_devops_github.pem
+              path_key=$(pwd)/withme_devops_github.pem
+              cp $path_key withme-devops-github
+              GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/kubernetes-configuration.git
+              GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/bootstrapper-init.git
+              export NAMESPACE=$ENV_K8s
+              echo "Printing ENV"
+              echo $ENV
+              #New Added user Docker file which presnt in bootstrapper-init
+              cd bootstrapper-init
+              python template.py $PROJECT_NAME $ENV_K8s
+              cd generated_manifests/$ENV_K8s/$PROJECT_NAME
+              cp Dockerfile ../../../../
+              cd ../../../../
+              #New
+              cp kubernetes-configuration/scripts/docker_build_push.sh ./
+              bash docker_build_push.sh $AWS_ECR $PROJECT_NAME $COMMIT_HASH dev-Rel_${{ needs.Docker-Build.outputs.my_output }}
+
+  Docker-Image-Deploy:
+    runs-on: [self-hosted,wmh-eks-dev-test] #1.26 self hosted runner
+    needs: Docker-Build
+    name: Deploying-Rel_${{ needs.Docker-Build.outputs.my_output }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+      ENV_K8s: "test"
+    steps:     
+      - name: Installing dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y jq git openssh-client python3-pip
+          git --version
+          jq --version
+          echo "jq installed"
+
+          pip3 install --upgrade awscli
+          echo "aws version"
+          aws --version
+          python3 --version
+          pip3 install jinja2
+
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+          echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+          kubectl version --client
+
+      - name: Deploy docker image
+        shell: bash
+        env:
+          WITHME_DEVOPS_GITHUB: ${{ secrets.WITHME_DEVOPS_GITHUB }}
+          DOCKER_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+          COMMIT_HASH: ${{ github.sha }}
+          PROJECT_NAME: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ steps.vars.outputs.branch }}
+          AWS_ECR: ${{ secrets.AWS_ECR }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DEV_GITHUB_AWS_ACCESS_KEY_ID: ${{ secrets.DEV_GITHUB_AWS_ACCESS_KEY_ID }}
+          DEV_GITHUB_AWS_SECRET_ACCESS_KEY: ${{ secrets.DEV_GITHUB_AWS_SECRET_ACCESS_KEY }}
+          EKS_CLUSTER: ex-wmh-eks-dev-test
+          EKS_CLUSTER_REGION: us-east-1
+        run: |
+          echo "$WITHME_DEVOPS_GITHUB" >> withme_devops_github.pem
+          echo "devops key saved to pem"
+          ls -l
+          chmod 600 withme_devops_github.pem
+          echo "devops key permissions updated"
+          path_key=$(pwd)/withme_devops_github.pem
+          cp $path_key withme-devops-github
+          mkdir -p /home/runner/.ssh
+          touch /home/runner/.ssh/known_hosts
+          curl --silent https://api.github.com/meta \
+          | jq --raw-output '"github.com "+.ssh_keys[]' >> ~/.ssh/known_hosts
+          GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/bootstrapper-init.git
+
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+          echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+          kubectl version --client
+          
+          export NAMESPACE=$ENV_K8s
+          echo ${{secrets.NEWTEST_AWS_ACCESS_KEY_ID}} | sed 's/./& /g'
+          export AWS_ACCESS_KEY_ID=$DEV_GITHUB_AWS_ACCESS_KEY_ID
+          export AWS_SECRET_ACCESS_KEY=$DEV_GITHUB_AWS_SECRET_ACCESS_KEY
+          echo $DEV_GITHUB_AWS_ACCESS_KEY_ID
+          echo $DEV_GITHUB_AWS_SECRET_ACCESS_KEY 
+
+          cd bootstrapper-init
+          python3 template.py $PROJECT_NAME $ENV_K8s
+          cd generated_manifests/$ENV_K8s/$PROJECT_NAME
+
+          ls -l
+          aws sts get-caller-identity
+          aws eks update-kubeconfig --region $EKS_CLUSTER_REGION --name $EKS_CLUSTER
+          kubectl get nodes
+          kubectl -n $ENV_K8s get pods
+          bash deploy.sh Rel_${{ needs.Docker-Build.outputs.my_output }}
+
+  Docker-Image-Deploy-dev:
+    runs-on: [self-hosted,wmh-eks-dev-test] #1.26 self hosted runner
+    #needs: Docker-Build-Dev
+    needs: [Docker-Build, Docker-Build-Dev]
+    name: Deploying-dev-Rel_${{ needs.Docker-Build.outputs.my_output }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+      ENV_K8s: "dev"
+    steps:     
+      - name: Installing dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y jq git openssh-client python3-pip
+          git --version
+          jq --version
+          echo "jq installed"
+
+          pip3 install --upgrade awscli
+          echo "aws version"
+          aws --version
+          python3 --version
+          pip3 install jinja2
+
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+          echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+          kubectl version --client
+
+      - name: Deploy docker image
+        shell: bash
+        env:
+          WITHME_DEVOPS_GITHUB: ${{ secrets.WITHME_DEVOPS_GITHUB }}
+          DOCKER_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+          COMMIT_HASH: ${{ github.sha }}
+          PROJECT_NAME: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ steps.vars.outputs.branch }}
+          AWS_ECR: ${{ secrets.AWS_ECR }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DEV_GITHUB_AWS_ACCESS_KEY_ID: ${{ secrets.DEV_GITHUB_AWS_ACCESS_KEY_ID }}
+          DEV_GITHUB_AWS_SECRET_ACCESS_KEY: ${{ secrets.DEV_GITHUB_AWS_SECRET_ACCESS_KEY }}
+          EKS_CLUSTER: ex-wmh-eks-dev-test
+          EKS_CLUSTER_REGION: us-east-1
+        run: |
+          echo "$WITHME_DEVOPS_GITHUB" >> withme_devops_github.pem
+          echo "devops key saved to pem"
+          ls -l
+          chmod 600 withme_devops_github.pem
+          echo "devops key permissions updated"
+          path_key=$(pwd)/withme_devops_github.pem
+          cp $path_key withme-devops-github
+          mkdir -p /home/runner/.ssh
+          touch /home/runner/.ssh/known_hosts
+          curl --silent https://api.github.com/meta \
+          | jq --raw-output '"github.com "+.ssh_keys[]' >> ~/.ssh/known_hosts
+          GIT_SSH_COMMAND="ssh -i ${path_key}" git clone git@github.com:withmehealth/bootstrapper-init.git
+
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.15/2022-10-31/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+          echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+          kubectl version --client
+          
+          export NAMESPACE=$ENV_K8s
+          echo ${{secrets.NEWTEST_AWS_ACCESS_KEY_ID}} | sed 's/./& /g'
+          export AWS_ACCESS_KEY_ID=$DEV_GITHUB_AWS_ACCESS_KEY_ID
+          export AWS_SECRET_ACCESS_KEY=$DEV_GITHUB_AWS_SECRET_ACCESS_KEY
+          echo $DEV_GITHUB_AWS_ACCESS_KEY_ID
+          echo $DEV_GITHUB_AWS_SECRET_ACCESS_KEY 
+
+          cd bootstrapper-init
+          python3 template.py $PROJECT_NAME $ENV_K8s
+          cd generated_manifests/$ENV_K8s/$PROJECT_NAME
+
+          ls -l
+          aws sts get-caller-identity
+          aws eks update-kubeconfig --region $EKS_CLUSTER_REGION --name $EKS_CLUSTER
+          kubectl get nodes
+          kubectl -n $ENV_K8s get pods
+          bash deploy.sh dev-Rel_${{ needs.Docker-Build.outputs.my_output }}
+
+
+
+  Print-Outputs:
+    runs-on: [ubuntu-latest]
+    needs: Docker-Build
+    name: Deployed-Rel_${{ needs.Docker-Build.outputs.my_output }}
+    steps:
+      - name: Print Output
+        run: echo "Deployed Rel_${{ needs.Docker-Build.outputs.my_output }}"
