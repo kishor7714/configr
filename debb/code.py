@@ -1,1 +1,1 @@
-print("taraka jaya kishore + anusha")
+print("taraka jaya kishore")
